@@ -1,2 +1,2 @@
 # shell-script
-Some bash scripts that help me and maybe can help you :)
+Some bash scripts that help me almost everyday and maybe can help you :)
