@@ -20,23 +20,19 @@
 #	v1.3 09/04/2021
 #		- Cabeçalho alterado
 #		- Comentários adicionados
-#		-
+#		- Resolvido bug da opção "-i"
 #
 #
 #	Licença: GPL
 
 ### Inicializando Variáveis
-PIPE="/tmp/pipe-$$"	# Nome do arquivo de named pipe que sera criado para que se possa ler os logs em real-time 
+PIPE="/tmp/pipe-$$"
 
 ### FUNCTIONS
-
-# Help do programa
 usage() {
-	echo
 	echo "Usage: $0 [Parameters]"
-	echo "-i	Specify the IP Address"
-	echo "-h	Print this message"
-	echo
+	echo "		-i	Specify the IP Address"
+	echo "		-h	Print this message"
 }
 
 # Coleta logs da OLT
@@ -97,7 +93,6 @@ pipe(){
 	fi
 }
 
-# Função que faz a mágica acontecer(Comentarios individuais em cada linha).
 listen() {
 	# Verifica se a sintaxe do IP que foi passado esta correta
 	if [[ $1 =~ ^(([1-9]|[1-9][0-9]|(1[0-9][0-9]|2[0-5][0-5]))\.){3}([1-9]|[1-9][0-9]|(1[0-9][0-9]|2[0-5][0-5]))$ ]]
@@ -105,7 +100,6 @@ listen() {
 		echo "--- Reading logs ---"
 		log $1 > .$1.log	# Executa função log() para que se possa colectar os logs da OLT e armazena os dados localmente
 
-		# Se o arquivo /tmp/last não existe, então execute o bloco abaixo
 		if [ ! -f /tmp/last ]
 		then
 			# Procura pela última linha de log válida e armazena no arquivo /tmp/last(Os logs da OLT são invertidos)
@@ -165,6 +159,7 @@ listen() {
 	fi
 else
 	echo "IP syntax is wrong... Please validate the IP address!"
+	kill_process
 fi
 }
 
