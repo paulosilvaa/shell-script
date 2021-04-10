@@ -26,18 +26,25 @@
 #		- Adicionado parâmetro -h
 #		- Adicionado parâmetro -V
 #		- Adicionado suporte à mais de 1 parâmetro
+#	v1.5 10/04/2021
+#		- Adicionado parâmetro -u
+#		- Adicionado parâmetro -p
 #
 #
 #	Licença: GPL
 
 ### Inicializando Variáveis
 PIPE="/tmp/pipe-$$"
+USER=""
+PASS=""
 
 ### FUNCTIONS
 usage() {
 	echo
-	echo "Usage: $(basename $0) [Parameters]"
+	echo "Usage: $(basename $0) -i 192.168.138.35 -u user -p pass [hV]"
 	echo "		-i, --ip	Specify the IP Address"
+	echo "		-u, --user	Specify the username"
+	echo "		-p, --pass	Specify the password"
 	echo "		-h, --help	Print this message"
 	echo "		-V, --version	Print the current version"
 	echo
@@ -52,9 +59,9 @@ log() {
 /usr/bin/expect << EOF
 spawn telnet $1
 expect -exact ">>User name:"
-send -- "rafael\r"
+send -- "$USER\r"
 expect -exact ">>User password:"
-send -- "YOURPASS\r"
+send -- "$PASS\r"
 expect -exact ">"
 send -- "display logbuffer\r"
 send -- "\r"
@@ -76,9 +83,9 @@ login() {
 /usr/bin/expect << EOF
 spawn telnet $1
 expect -exact ">>User name:"
-send -- "rafael\r"
+send -- "$USER\r"
 expect -exact ">>User password:"
-send -- "YOURPASS\r"
+send -- "$PASS\r"
 expect -exact ">"
 send -- "enable\r"
 expect -exact "#"
@@ -180,7 +187,7 @@ else
 fi
 }
 
-if [ -z "$1" ]
+if [[ -z "$1" ]]
 then
 	usage
 	exit 0
@@ -194,6 +201,24 @@ else
 				trap "kill_process" 2
 				while true;do listen "$1" ; sleep 3;done&
 				tail -f $PIPE
+				;;
+			-u | --user)
+				shift
+				USER="$1"
+				
+				if [ -z $1 ]
+				then
+					echo "Missing the name of the username"
+				fi
+				;;
+			-p | --pass)
+				shift
+				PASS="$1"
+				
+				if [ -z $1 ]
+				then
+					echo "Missing the password"
+				fi
 				;;
 			-h | --help)
 				usage
