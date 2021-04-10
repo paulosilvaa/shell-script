@@ -22,6 +22,10 @@
 #		- Comentários adicionados
 #		- Resolvido bug da opção "-i"
 #		- Melhorada a identação
+#	v1.4 09/04/2021
+#		- Adicionado parâmetro -h
+#		- Adicionado parâmetro -V
+#		- Adicionado suporte à mais de 1 parâmetro
 #
 #
 #	Licença: GPL
@@ -31,9 +35,16 @@ PIPE="/tmp/pipe-$$"
 
 ### FUNCTIONS
 usage() {
-	echo "Usage: $0 [Parameters]"
-	echo "		-i	Specify the IP Address"
-	echo "		-h	Print this message"
+	echo
+	echo "Usage: $(basename $0) [Parameters]"
+	echo "		-i, --ip	Specify the IP Address"
+	echo "		-h, --help	Print this message"
+	echo "		-V, --version	Print the current version"
+	echo
+}
+
+version(){
+	grep -Eo "v[0-9]{1,}\.[0-9]{1,}" $0 | tail -n1
 }
 
 # Coleta logs da OLT
@@ -169,18 +180,34 @@ else
 fi
 }
 
-case $1 in
-	-i)
+if [ -z "$1" ]
+then
+	usage
+	exit 0
+else
+	while test -n "$1"
+	do
+		case $1 in
+			-i | --ip)
+				shift
+				pipe
+				trap "kill_process" 2
+				while true;do listen "$1" ; sleep 3;done&
+				tail -f $PIPE
+				;;
+			-h | --help)
+				usage
+				exit 0
+				;;
+			-V | --version)
+				version
+				exit 0
+				;;
+			*)
+				usage
+				exit 1
+				;;
+		esac
 		shift
-		pipe
-		trap "kill_process" 2
-		while true;do listen $1 ; sleep 3;done&
-		tail -f $PIPE
-		;;
-	-h)
-		usage
-		;;
-	*)
-		usage
-		;;
-esac
+	done
+fi
