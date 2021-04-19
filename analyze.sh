@@ -41,7 +41,7 @@ PASS=""
 ### FUNCTIONS
 usage() {
 	echo
-	echo "Usage: $(basename $0) -i 192.168.138.35 -u user -p pass [hV]"
+	echo "Usage: $(basename $0) -i 192.168.138.115 -u user -p pass [hV]"
 	echo "		-i, --ip	Specify the IP Address"
 	echo "		-u, --user	Specify the username"
 	echo "		-p, --pass	Specify the password"
