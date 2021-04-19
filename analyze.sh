@@ -29,6 +29,10 @@
 #	v1.5 10/04/2021
 #		- Adicionado parâmetro -u
 #		- Adicionado parâmetro -p
+#	v2.0 19/04/201
+#		- Script segmentado, separadando as funções que estavam juntas
+#		- Paths de arquivos alterados
+#		- Adicionado checagem da porta Telnet
 #
 #
 #	Licença: GPL
@@ -37,6 +41,7 @@
 PIPE="/tmp/pipe-$$"
 USER=""
 PASS=""
+IP=""
 
 ### FUNCTIONS
 usage() {
@@ -100,7 +105,6 @@ EOF
 
 # Remove arquivos temporários
 kill_process(){
-	rm -f $PWD/.$1*.log
 	rm -f $PIPE
 	kill 0
 }
@@ -113,78 +117,66 @@ pipe(){
 	fi
 }
 
-listen() {
-	# Verifica se a sintaxe do IP que foi passado esta correta
-	if [[ $1 =~ ^(([1-9]|[1-9][0-9]|(1[0-9][0-9]|2[0-5][0-5]))\.){3}([1-9]|[1-9][0-9]|(1[0-9][0-9]|2[0-5][0-5]))$ ]]
+# Verifica se a sintaxe do IP que foi passado esta correta
+validate_ip(){
+	if [[ "$1" =~ ^(([1-9]|[1-9][0-9]|(1[0-9][0-9]|2[0-5][0-5]))\.){3}([1-9]|[1-9][0-9]|(1[0-9][0-9]|2[0-5][0-5]))$ ]]
 	then
-		echo "--- Reading logs ---"
-		log $1 > .$1.log	# Executa função log() para que se possa colectar os logs da OLT e armazena os dados localmente
-
-		if [ ! -f /tmp/last ]
-		then
-			# Procura pela última linha de log válida e armazena no arquivo /tmp/last(Os logs da OLT são invertidos)
-			grep -E '!' $PWD/.$1.log | head -n1 > /tmp/last
-			# Defino minha variável $IFS como um \n
-			IFS=$'\n'
-			# Defindo variavel client com base nas infos do Slot e ONU.
-			local client=$(grep -A1 -B1 -E 'The distribute fiber is broken' $PWD/$1.log | \
-				grep -Eo '[0-9]{4}-[0-9]{2}-[0-9]{2} [0-9]{2}:[0-9]{2}:[0-9]{2}|[0-9]{2}-[0-9]{2}-[0-9]{4} [0-9]{2}:[0-9]{2}:[0-9]{2}|SlotID: [0-9]{1,2}, PortID: [0-9]{1,2}, ONT ID: [0-9]{1,3}'|\
-				sed 'N;s/\n/ /' | sed -r 's/(SlotID: [0-9]{1,2}, PortID: [0-9]{1,2}, ONT ID: [0-9]{1,3}) ([0-9]{4}-[0-9]{2}-[0-9]{2} [0-9]{2}:[0-9]{2}:[0-9]{2})/\2 \1/')
-			for i in $client
-			do 
-				local slot=$(echo $i | sed -r 's/.*(SlotID: [0-9]{1,2}, PortID: [0-9]{1,2}, ONT ID: [0-9]{1,3})/\1/')
-				local onu=$(echo $i | sed -r 's/.*(SlotID: [0-9]{1,2}, PortID: [0-9]{1,2}, ONT ID: [0-9]{1,3})/\1/')
-				local parsed=$(echo $onu | sed -r 's/\w+: ([[:digit:]]), \w+: ([[:digit:]]{1,2}), \w+ \w+:/\1 \2/')
-				login $1 > .$1-user.log
-				local username=$(grep -A 25 "display ont info 0 $parsed" $PWD/.$1-user.log | grep "Description" | uniq | awk '{ print $3 }' | sed 's/@.*/@/g')
-				local time=$(echo $i | sed -r 's/(.*) (SlotID.*)/\1/')
-
-				# Exibe informações e redireciona as mesmas para o arquivo $PIPE
-				echo "---------" &> $PIPE
-				echo "INFO" &> $PIPE
-				echo "Username: $username" &> $PIPE
-				echo "ONU: $onu" &> $PIPE
-				echo "Time: $time" &> $PIPE
-				echo &> $PIPE
-			done
-		else
-			# Inicializa a variável $last com a última linha do log contido em /tmp/last da última passada do for
-        		local last=$(cat /tmp/last)
-			# Inicializa a variável $first com a primeira linha do arquivo atual
-        		local first=$(grep -E '!' $PWD/.$1.log| head -n1)
-			# Deleta linhas repetidas entre o atual e o último arquivo
-        		sed -i "/$first/,/$last/!d" $PWD/.$1.log
-			# Quando termina, pega novamente a primeira linha e alimenta o arquivo /tmp/last
-        		grep -E '!' $PWD/.$1.log | head -n1 > /tmp/last
-
-			# Mesmas funções do primeiro IF
-			IFS=$'\n'
-			local client=$(grep -A1 -B1 -E 'The distribute fiber is broken' $PWD/.$1.log | \
-				grep -Eo '[0-9]{4}-[0-9]{2}-[0-9]{2} [0-9]{2}:[0-9]{2}:[0-9]{2}|[0-9]{2}-[0-9]{2}-[0-9]{4} [0-9]{2}:[0-9]{2}:[0-9]{2}|SlotID: [0-9]{1,2}, PortID: [0-9]{1,2}, ONT ID: [0-9]{1,3}'|\
-				sed 'N;s/\n/ /' | sed -r 's/(SlotID: [0-9]{1,2}, PortID: [0-9]{1,2}, ONT ID: [0-9]{1,3}) ([0-9]{4}-[0-9]{2}-[0-9]{2} [0-9]{2}:[0-9]{2}:[0-9]{2})/\2 \1/')
-		
-			for i in $client
-			do 
-				local slot=$(echo $i | sed -r 's/.*(SlotID: [0-9]{1,2}, PortID: [0-9]{1,2}, ONT ID: [0-9]{1,3})/\1/')
-				local onu=$(echo $i | sed -r 's/.*(SlotID: [0-9]{1,2}, PortID: [0-9]{1,2}, ONT ID: [0-9]{1,3})/\1/')
-				local parsed=$(echo $onu | sed -r 's/\w+: ([[:digit:]]), \w+: ([[:digit:]]{1,2}), \w+ \w+:/\1 \2/')
-				login $1 > .$1-user.log
-				local username=$(grep -A 25 "display ont info 0 $parsed" $PWD/.$1-user.log | grep "Description" | uniq | awk '{ print $3 }' | sed 's/@.*/@/g')
-				local time=$(echo $i | sed -r 's/(.*) (SlotID.*)/\1/')
-
-					echo "---------" &> $PIPE
-					echo "INFO" &> $PIPE
-					echo "Username: $username" &> $PIPE
-					echo "ONU: $onu" &> $PIPE
-					echo "Time: $time" &> $PIPE
-					echo &> $PIPE
-			done
-
+		IP="$1"
+	else
+		echo "IP syntax is wrong... Please validate the IP address!"
 	fi
-else
-	echo "IP syntax is wrong... Please validate the IP address!"
-	kill_process
-fi
+}
+
+# Faz o parsing dos arquivos
+parsing(){
+	for cliente in $client
+	do
+		local LOGUSER="/tmp/"$IP"-user.log"
+		local onu=$(echo "$cliente" | sed -r 's/.*(SlotID: [0-9]{1,2}, PortID: [0-9]{1,2}, ONT ID: [0-9]{1,3})/\1/')
+		local parsed=$(echo $onu | sed -r 's/\w+: ([[:digit:]]), \w+: ([[:digit:]]{1,2}), \w+ \w+:/\1 \2/')
+		login "$IP" > "$LOGUSER"
+		local username=$(grep -A 25 "display ont info 0 $parsed" "$LOGUSER" | grep "Description" | uniq | awk '{ print $3 }' | sed 's/@.*/@/g')
+		local time=$(echo $cliente | sed -r 's/(.*) (SlotID.*)/\1/')
+
+		# Exibe informações e redireciona as mesmas para o arquivo $PIPE
+		echo "---------" &> $PIPE
+		echo "INFO" &> $PIPE
+		echo "Username: $username" &> $PIPE
+		echo "ONU: $onu" &> $PIPE
+		echo "Time: $time" &> $PIPE
+		echo &> $PIPE
+	done
+}
+
+# Define variáveis necessárias para o parsing
+listen(){
+	local LOG="/tmp/"$IP".log"
+	echo "--- Reading logs ---"
+	log "$IP" > "$LOG" # Executa função log() para que se possa colectar os logs da OLT e armazena os dados localmente
+
+	# Defino minha variável $IFS como um \n
+	IFS=$'\n'
+	# Defindo variavel client com base nas infos do Slot e ONU.
+	local client=$(grep -A1 -B1 -E 'The distribute fiber is broken' "$LOG" | \
+	grep -Eo '[0-9]{4}-[0-9]{2}-[0-9]{2} [0-9]{2}:[0-9]{2}:[0-9]{2}|[0-9]{2}-[0-9]{2}-[0-9]{4} [0-9]{2}:[0-9]{2}:[0-9]{2}|SlotID: [0-9]{1,2}, PortID: [0-9]{1,2}, ONT ID: [0-9]{1,3}'|\
+	sed 'N;s/\n/ /' | sed -r 's/(SlotID: [0-9]{1,2}, PortID: [0-9]{1,2}, ONT ID: [0-9]{1,3}) ([0-9]{4}-[0-9]{2}-[0-9]{2} [0-9]{2}:[0-9]{2}:[0-9]{2})/\2 \1/')
+
+	if [ ! -f /tmp/last ]
+	then
+		# Procura pela última linha de log válida e armazena no arquivo /tmp/last(Os logs da OLT são invertidos)
+		grep -E '!' "$LOG" | head -n1 > /tmp/last
+		parsing
+	else
+		# Inicializa a variável $last com a última linha do log contido em /tmp/last da última passada do for
+		local last=$(cat /tmp/last)
+		# Inicializa a variável $first com a primeira linha do arquivo atual
+		local first=$(grep -E '!' "$LOG" | head -n1)
+		# Deleta linhas repetidas entre o atual e o último arquivo
+		sed -i "/$first/,/$last/!d" "$LOG"
+		# Quando termina, pega novamente a primeira linha e alimenta o arquivo /tmp/last
+		grep -E '!' "$LOG" | head -n1 > /tmp/last
+		parsing
+	fi
 }
 
 if [[ -z "$1" ]]
@@ -197,27 +189,32 @@ else
 		case $1 in
 			-i | --ip)
 				shift
-				pipe
-				trap "kill_process" 2
-				while true;do listen "$1" ; sleep 3;done&
-				tail -f $PIPE
+
+				if [ -z "$1" ]
+				then
+					echo "Missing the IP Address"
+				else
+					validate_ip "$1"
+				fi
 				;;
 			-u | --user)
 				shift
-				USER="$1"
 				
-				if [ -z $1 ]
+				if [ -z "$1" ]
 				then
 					echo "Missing the name of the username"
+				else
+					USER="$1"
 				fi
 				;;
 			-p | --pass)
 				shift
-				PASS="$1"
 				
-				if [ -z $1 ]
+				if [ -z "$1" ]
 				then
 					echo "Missing the password"
+				else
+					PASS="$1"
 				fi
 				;;
 			-h | --help)
@@ -236,3 +233,20 @@ else
 		shift
 	done
 fi
+
+if [[ -n "$USER" && -n "$PASS" && -n "$IP" ]]
+then
+	if nc -w 0.5 -z "$IP" 23
+	then
+		pipe
+		trap "kill_process" 0 2
+		while true;do listen;sleep 3;done&
+		tail -f $PIPE
+	else
+		echo "Telnet port is closed"
+	fi
+else
+	usage
+	exit 1
+fi
+
