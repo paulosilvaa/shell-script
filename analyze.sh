@@ -33,6 +33,8 @@
 #		- Script segmentado, separadando as funções que estavam juntas
 #		- Paths de arquivos alterados
 #		- Adicionado checagem da porta Telnet
+#	v2.1 30/04/2021
+#		- Removido o parâmetro "-w" da checagem no netcat
 #
 #
 #	Licença: GPL
@@ -236,7 +238,7 @@ fi
 
 if [[ -n "$USER" && -n "$PASS" && -n "$IP" ]]
 then
-	if nc -w 0.5 -z "$IP" 23
+	if nc -z "$IP" 23
 	then
 		pipe
 		trap "kill_process" 0 2
